@@ -10,11 +10,40 @@ import argparse
 import sys
 import dxfgrabber
 import numpy as np
+from numpy import NaN, pi
 from cncfclib import *
+import collections
 
+
+pt=collections.namedtuple('pt',['x', 'y', 'R', 'th'])
+def angl(x):
+    out = x
+
+    if x<0:
+        out = 2*pi + x
+    return out
+vangl=np.vectorize(angl)
 
 def cross_prod(u, v):
     return u[0] * v[1] - u[1] * v[0]
+
+def radius_segment_intersection():
+    # // first convert line to normalized unit vector
+    # double dx = x2 - x1;
+    # double dy = y2 - y1;
+    # double mag = sqrt(dx*dx + dy*dy);
+    # dx /= mag;
+    # dy /= mag;
+    #
+    # // translate the point and get the dot product
+    # double lambda = (dx * (x3 - x1)) + (dy * (y3 - y1));
+    # x4 = (dx * lambda) + x1;2
+    # y4 = (dy * lambda) + y1;
+    return 0
+
+def radius_segment(P1,P2,P3):
+    return np.abs(-np.linalg.det([P2-P1, P3])-np.linalg.det([P2,P1]))/np.sqrt(np.sum(np.square(P2-P1)))
+
 
 
 def sub_points(p1, p2):
@@ -189,75 +218,30 @@ def print_list(data_list, common_text):
         print('{0} {1}'.format(common_text, var))
 
 
-def dxf_read(files, layer_name, dec_acc, n_arc, l_arc):
-    tol = dec_acc
-    knots_list = []
-    elements_list = []
-    hrd_knots_list=[]
-    hrd_element_list=[]
-    start_point_list = []
+def dxf_read(files, layer_name, tol, n_arc, l_arc):
+
     line_count = 0
-    arc_count = 0
     circle_count = 0
-#    list_entities(dxf)
-# ,
-#                                                                       [x[1] for x in knots_rank].count(3), ' '
+    p_set= []
+    c_set= []
+
     for shape in dxf.entities:
         if shape.layer == layer_name:
             if shape.dxftype == 'LINE':
                 line_count += 1
-                p1 = tuple(round(x, tol) for x in shape.start)
-                p2 = tuple(round(x, tol) for x in shape.end)
-                if p1!=p2:
-                    knots_list.append(p1)
-                    knots_list.append(p2)
-                    elements_list.append([p1, p2])
+                p_st = shape.start
+                p_en = shape.end
+                p_set.append( pt(round(p_st[0],tol), round(p_st[1],tol),NaN, NaN))
+                p_set.append( pt(round(p_en[0],tol), round(p_en[1],tol),NaN, NaN))
 
             if shape.dxftype == 'CIRCLE':
                 circle_count += 1
-                O = tuple(round(x, tol) for x in shape.center)
-                # print('CIRCLE {0}: center: {1}'.format(circle_count, O))
-                start_point_list.append(0)
+                p_cnt = shape.center
+                c_set.append(pt(round(p_cnt[0],tol), round(p_cnt[1],tol),NaN, NaN))
 
-            if shape.dxftype == 'ARC':
-                arc_count += 1
-                ARC_knots_list = []
-                n = n_arc  # number of segments
-                min_len = l_arc
-                O = shape.center
-                R = shape.radius
-                angl_1 = shape.startangle * np.pi / 180
-                angl_2 = shape.endangle * np.pi / 180
+    # hrd_element_list.append(elements_list[0])
 
-                if angl_2 >= angl_1:
-                    angl_list = np.linspace(angl_1, angl_2, n)
-                else:
-                    angl_list = np.linspace(angl_1, angl_2 + 2 * np.pi, n)
-
-                arc_len = R * np.absolute(angl_2 - angl_1)
-
-                if arc_len / n < min_len:
-                    n = max(int(arc_len / min_len), 3)
-
-                for angl in angl_list:
-                    ARC_knots_list.append(
-                        (round(O[0] + R * np.cos(angl), tol), round(O[1] + R * np.sin(angl), tol), O[2]))
-
-                for i in range(n - 1):
-                    elements_list.append(ARC_knots_list[i:i + 2])
-
-                knots_list.extend(ARC_knots_list)
-
-    #hrd_knots_list.append(knots_list[0])
-    hrd_element_list.append(elements_list[0])
-
-    for var in elements_list:
-        tmp=[var for hrd_var in hrd_element_list if (var[0] in hrd_var) and (var[1] in hrd_var)]
-        if  not len(tmp):
-            hrd_element_list.append(var)
-
-    # print 'removed elemts: ', len(elements_list)-len(hrd_element_list)
-    return (knots_list, hrd_element_list, start_point_list, [line_count, arc_count])
+    return (p_set, c_set, [line_count, circle_count])
 
 
 #*********************************************************************DEFAULT PARAMETERS
@@ -273,14 +257,10 @@ dflt_path_dir = 1  # closed path collecting direction
 parser = argparse.ArgumentParser(description='test')
 parser.add_argument('-i', '--input', nargs='+', help='input filenames')
 parser.add_argument('-l', '--layer', nargs='+', help='input layers')
-parser.add_argument('-a', '--accuracy', type=int,
-                    default=dflt_dec_acc, help='decimal accuracy, default: 3')
-parser.add_argument('-narc', '--arc_seg_num', type=int,
-                    default=dflt_n_arc, help='arc segments number, default: 10')
-parser.add_argument('-larc', '--arc_seg_len', type=int,
-                    default=dflt_l_arc, help='minimal arc segment length, default: 1')
-parser.add_argument('-cw', '--collection_dir', type=int,
-                    default=dflt_path_dir, help='closed path collection dir')
+parser.add_argument('-a', '--accuracy', type=int, default=dflt_dec_acc, help='decimal accuracy, default: 3')
+parser.add_argument('-narc', '--arc_seg_num', type=int, default=dflt_n_arc, help='arc segments number, default: 10')
+parser.add_argument('-larc', '--arc_seg_len', type=int, default=dflt_l_arc, help='minimal arc segment length, default: 1')
+parser.add_argument('-cw', '--collection_dir', type=int,default=dflt_path_dir, help='closed path collection dir')
 
 args = parser.parse_args()
 
@@ -329,59 +309,50 @@ else:
             layer_name_list = [var.name for var in dxf_layers if prof_pref in var.name]
 
         for layer_name in sorted(layer_name_list):
-            knots_list, elements_list, start_point_list, shape_count = dxf_read(
-                dxf, layer_name, dec_acc, n_arc, l_arc)
+            p_set, c_set, shape_count = dxf_read(dxf, layer_name, dec_acc, n_arc, l_arc)
+            print('{}'.format('point data'))
+            print(np.array(p_set))
+            print('{}'.format('start data'))
+            print(np.array(c_set))
+            print(np.array(list(collections.OrderedDict.fromkeys(p_set))))
+            p_cnt = [x for x, y in collections.Counter(p_set).items() if y >  1]
+            p_sec = [x for x, y in collections.Counter(p_set).items() if y == 1]
 
-            sorted_knots = knots_dict(knots_list)
-            el_kt_list = elements_coords2knots(elements_list, sorted_knots)
-
-            knots_rank = knots_rank_list(el_kt_list, sorted_knots, None)
-            master_knot = knots_rank_find(knots_rank, 3)
-            IO_knot = knots_rank_find(knots_rank, 1)
-
-            print('{:12}|{:12}|{:12}|{:12}'.format(layer_name, max([x[1] for x in knots_rank]), [x[1] for x in knots_rank].count(1), len(start_point_list))),
-
-            if len(IO_knot) != 1 or len(master_knot) != 1 or IO_knot[0] == None or master_knot[0] == None:
-                 print('{0:^20}|'.format('SKIPPED'))
-            #
-            #     for var in IO_knot:
-            #         print("IO knot error: {0} coord: {1}".format(var,knot2coord(sorted_knots, var)))
-            #
-            #     for var in master_knot:
-            #         print("master knot error: {0} coord: {1}".format(var,knot2coord(sorted_knots, var)))
-            #
-            #     var =10
-            #     print("master knot error: {0} coord: {1}".format(var,knot2coord(sorted_knots, var)))
-
+            if len(c_set) == 0:
+                print('no circle defining the start point')
+            elif len(c_set) >1:
+                print('more than one circle defining the start point:\n {}'.format(c_set))
+            elif not(c_set[0] in p_sec):
+                print('circle center position does not match any section node')
+            elif len(p_cnt) != 1:
+                    print('error, not single center point: {}'.format(p_cnt))
+            elif len(p_set)/2 != len(p_sec):
+                print('error some extra sections are present')
             else:
+                print('start point: \n{}'.format(c_set[0]))
+                print('center point: \n{}'.format(p_cnt[0]))
+                print('section points: \n{}'.format(p_sec))
+                O = p_cnt[0]
+
+                p_cnt_arr=np.array(p_cnt[0])
+                p_sec_arr=np.array(p_sec)
+
+                # p_ang0_arr = np.array(c_set[0])
+                # p_ang0_arr[:,2]=np.sqrt((p_ang0_arr[:,0] - O.x)**2 + (p_ang0_arr[:,1] - O.y)**2)
+                # p_ang0_arr[:,3]=np.arccos((p_ang0_arr[:,0] - O.x) / (p_ang0_arr[:,2]))
+                p_0 = collections.namedtuple('p_0',['x', 'y', 'R', 'th'])
+                p_0.x = c_set[0].x
+                p_0.y = c_set[0].y
+                p_0.R = np.sqrt((p_0.x - O.x)**2 + (p_0.y - O.y)**2)
+                p_0.th = np.arctan2(p_0.y - O.y, p_0.x - O.x)
+                print('pppppp')
+                print(p_0.th)
+                p_sec_arr[:,2]=np.sqrt((p_sec_arr[:,0] - O.x)**2 + (p_sec_arr[:,1] - O.y)**2)
+                p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x) - p_0.th)
+                p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
+                print(p_sec_arr)
+            # print('{:12}|{:12}|{:12}|{:12}'.format(layer_name, max([x[1] for x in knots_rank]), [x[1] for x in knots_rank].count(1), len(start_point_list))),
 
 
-                io_path = find_path(2, el_kt_list, sorted_knots, None)  # IO path
-
-                # print('{0:3}: {1:4d}|'.format('i/o', len(io_path))),
-
-                last_el, excl_knot = find_l_el(
-                    path_dir, el_kt_list, sorted_knots, master_knot[0])
-
-                ct_path = find_path(
-                    1, el_kt_list, sorted_knots, excl_knot[0])  # loop path
-                # print('{0:3}: {1:4d}|'.format('ct', len(ct_path)))
-
-#{{{
-                i_file_name = '{1}{2}.{3}'.format(
-                    case_name[0], layer_name, '1', 'knt')
-                knots2file(i_file_name, io_path, sorted_knots)
-#                print('i_path saved to: {0}'.format(i_file_name))
-
-                o_file_name = '{1}{2}.{3}'.format(
-                    case_name[0], layer_name, '3', 'knt')
-                knots2file(o_file_name, [var[::-1]
-                                         for var in io_path[::-1]], sorted_knots)
-#                print('o_path saved to: {0}'.format(o_file_name))
-
-                ct_file_name = '{1}{2}.{3}'.format(
-                    case_name[0], layer_name, '2', 'knt')
-
-                knots2file(ct_file_name, ct_path, sorted_knots)
-                print("\n")
 print "\n end of program. thank you!"
+print(radius_segment(np.array([1,1]),np.array([2,2]),np.array([0,1])))
