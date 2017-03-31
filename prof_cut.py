@@ -102,21 +102,42 @@ prof_R_list = []
 prof_th_list = []
 
 #*********************************************************************PROGRAM
-parser = argparse.ArgumentParser(description='test')
-parser.add_argument('-i', '--input', type=str, help='input filename')
-parser.add_argument('-l', '--layer', type=str, help='profile data prefix. prefix_xxxx - profile; prefix_spin - loft spin data')
+parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                                description='''\
+--------------------------
+lofted shape rules for dxf
+--------------------------
+
+the lofted shape is defined by:
+
+1. profile layers:
+[prefix_XX_YYYY] where: XX   - part numeber; YYYY - profile number.
+Each profile is build with n LINES and a CIRCLE. The other shapes are neglected. he profile is builf with n LINES. The lines have one end coincident (O_POINT) and the other is coincident with the cut contour of the profile. There is one distiguinshed line (0_LINE) which end is marked with a CIRCLE center. This line is treated as the first and the other lines are ordered counterclockwise. All profiles must be build with THE SAME NUMBER of LINES.
+
+2. spin layer:
+[prefix_XX_spin] where: XX   - part numeber
+The spin is built with n CIRCLES which define JOINTS. The other shapes are neglected. Y position of the CIRCLE center points define coresponding positions of the profile O_POINTS. O_POINTs are assigned to JOINTS as the ordered profile names (LAYER NAMES) along the Y axis. Number of joints must correspond to the number of the profiles.
+
+    ''',
+                                usage='%(prog)s [-i dxf_filename] [-l lofted_shape_prefix]')
+
+
+
+parser.add_argument('-i', '--input', type=str, required=True, help='input filename')
+parser.add_argument('-l', '--profile_prefix', type=str, required=True, help='profile data prefix. prefix_xxxx - profile; prefix_spin - loft spin data')
 parser.add_argument('-a', '--accuracy', type=int, default=dflt_dec_acc, help='decimal accuracy, default: 3')
-# parser.add_argument('-narc', '--arc_seg_num', type=int, default=dflt_n_arc, help='arc segments number, default: 10')
-# parser.add_argument('-larc', '--arc_seg_len', type=int, default=dflt_l_arc, help='minimal arc segment length, default: 1')
+parser.add_argument('-n_sect', '--nb_of_sections', type=int, default=dflt_n_arc, help='number of interpolation sections along the spin, default: number of profiles')
+parser.add_argument('-interp', '--interp_meth', type=str, default=dflt_l_arc, help='interpolation method between profiles:\n, linear -default\n ')
 # parser.add_argument('-cw', '--collection_dir', type=int,default=dflt_path_dir, help='closed path collection dir')
 
 args = parser.parse_args()
 
 dxf_list = args.input
-layer_list = args.layer
+layer_list = args.profile_prefix
 dec_acc = args.accuracy
-prof_pref= layer_list
-prof_spin= layer_list+'_spin'
+aaaa=args.interp_meth
+ffff=args.nb_of_sections
+
 # n_arc = args.arc_seg_num
 # l_arc = args.arc_seg_len
 # path_dir = args.collection_dir
@@ -124,17 +145,16 @@ prof_spin= layer_list+'_spin'
 dir_path = os.getcwd()
 dxf_files = [i for i in os.listdir(dir_path) if i.endswith('.dxf')]
 
-if dxf_list:
-    print dxf_files
-    files_dxf = [i for i in dxf_files if i in dxf_list]
-else:
-    files_dxf = dxf_files
+if not dxf_list:
+    print('the input file is not specified, use: -i "file name"')
+elif not (dxf_list in dxf_files):
+    print('the current dir does not include requested dxf files')
+elif not layer_list:
+    print('the profile prefix is not specified, use: -l "profile prefix"')
 
-if not files_dxf:
-    print 'dir does not include requested dxf files'
-
-# else, execute the program
 else:
+    prof_pref= layer_list
+    prof_spin= layer_list+'_spin'
 
     files_dxf_member = dxf_list
 
@@ -188,9 +208,6 @@ else:
             prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_0_arr[:,:2]) )
             prof_th_list.append( angle_segment( segment[:,:2], segment[:,2:4], p_0_arr[:,:2]) *180/pi )
 
-
-
-
     for layer_name in sorted(prof_spin_layer_name_list):
         dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
         z_set= np.hstack([var.y for var in c_set])
@@ -215,12 +232,10 @@ else:
         name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
         coords2file(name, path_R(yv), yv)
 
-
     for i in range(len(th_val[0,:])):
         path_th = interpolate.interp1d(z_set, th_val[:,i])
         name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
         print(path_th(yv))
         Rcoords2file(name, path_th(yv))
-
 
 print "\n end of program. thank you!"
