@@ -14,7 +14,7 @@ from numpy import NaN, pi
 from cncfclib import *
 import collections
 from scipy import interpolate
-
+np.set_printoptions(precision=1)
 
 pt=collections.namedtuple('pt',['x', 'y', 'R', 'th'])
 
@@ -28,17 +28,58 @@ def angl_conv(x):
 
 vangl=np.vectorize(angl_conv)
 
+def dist(P1, P2):
+    return np.sqrt(np.sum(((P1-P2)**2)))
+
 def radius_segment(P1,P2,P3):
     P4 = np.abs( (P2[:,1]-P1[:,1]) * P3[:,0] - (P2[:,0]-P1[:,0]) * P3[:,1] + P2[:,0]*P1[:,1] - P2[:,1]*P1[:,0]) / np.sqrt( (P2[:,1] - P1[:,1])**2 + (P2[:,0]-P1[:,0])**2 )
     return np.vstack(P4)
 
 def angle_segment(P1,P2,P3):
+    '''   P2
+         /
+        /
+       P4.
+      /       .
+    P1             P3
+    '''
     k = ((P2[:,1]-P1[:,1]) * (P3[:,0]-P1[:,0]) - (P2[:,0]-P1[:,0]) * (P3[:,1]-P1[:,1])) / ((P2[:,1]-P1[:,1])**2 + (P2[:,0]-P1[:,0])**2)
-    P4=np.vstack([P3[:,0] - k * (P2[:,1]-P1[:,1]), P3[:,1] + k * (P2[:,0]-P1[:,0])]).T
-    angl=np.arctan2(P4[:,1] - P3[:,1], P4[:,0] - P3[:,0])
+    P4 = np.vstack([P3[:,0] - k * (P2[:,1]-P1[:,1]), P3[:,1] + k * (P2[:,0]-P1[:,0])]).T
+    angl = np.arctan2(P4[:,1] - P3[:,1], P4[:,0] - P3[:,0])
+    angl = np.vstack(angl)
+    return angl#np.apply_along_axis(lambda x:x if x>=0 else 2*pi+x, 1, angl)
 
-    # return np.vstack(vangl(angl))
-    return np.vstack(angl)
+def cross_point(P1,P2,P3):
+    '''   P2
+         /
+        /
+       P4.
+      /       .
+    P1             P3
+    '''
+    k = ((P2[:,1]-P1[:,1]) * (P3[:,0]-P1[:,0]) - (P2[:,0]-P1[:,0]) * (P3[:,1]-P1[:,1])) / ((P2[:,1]-P1[:,1])**2 + (P2[:,0]-P1[:,0])**2)
+    P4 = np.vstack([P3[:,0] - k * (P2[:,1]-P1[:,1]), P3[:,1] + k * (P2[:,0]-P1[:,0])]).T
+
+
+    return P4#np.apply_along_axis(lambda x:x if x>=0 else 2*pi+x, 1, angl)
+
+def angle_test(P1,P2,P3):
+    '''   P3
+         /
+        / angl
+       P2-------P1
+
+    v1 = P1-P2 <- ref. vector
+    v2 = P3-P2
+    '''
+    v1 = P1-P2
+    v2 = P3-P2
+
+    angl1 = np.vstack(np.arctan2(v1[:,1],v1[:,0]))
+    angl2 = np.vstack(np.arctan2(v2[:,1],v2[:,0]))
+    dangl = np.apply_along_axis(lambda x:x if x>=0 else 2*pi+x, 1, angl2-angl1)
+
+    return np.vstack(dangl)
 
 def coords2file(name,coords_XU, coords_YV):
     pref_1='xyuv_'
@@ -105,7 +146,9 @@ dflt_path_dir = 1  # closed path collecting direction
 prof_segment_list = []
 prof_R_list = []
 prof_th_list = []
-
+start_offset_list = []
+cross_point_list =[]
+spoke_prof_list = []
 #*********************************************************************PROGRAM
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                 description='''\
@@ -193,28 +236,64 @@ else:
             print('{}'.format(layer_name))
 
             O = p_cnt[0]
-
-            p_cnt_arr=np.array(p_cnt[0])
-            p_sec_arr=np.array(p_sec)
-            p_0_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
-
             p_0 = collections.namedtuple('p_0',['x', 'y', 'R', 'th'])
             p_0.x = c_set[0].x
             p_0.y = c_set[0].y
 
+            p_cnt_arr=np.array(p_cnt[0])
+            p_sec_arr=np.array(p_sec)
+            p_cnt_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
+            p_center_point_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
+            p_start_point_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([p_0.x, p_0.y])
+
             p_0.R = np.sqrt((p_0.x - O.x)**2 + (p_0.y - O.y)**2)
+
             p_0.th = np.arctan2(p_0.y - O.y, p_0.x - O.x)
             p_sec_arr[:,2]=np.sqrt((p_sec_arr[:,0] - O.x)**2 + (p_sec_arr[:,1] - O.y)**2)
-            p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x))*180/pi
-            p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
-            print('fffffffffffffffffffff')
-            print(p_sec_arr)
-            print('fffffffffffffffffffff')
-            segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
-            # prof_R_list.append( np.hstack([radius_segment(segment[:,:2], segment[:,2:4], p_0_arr[:,:2])]) )
-            prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_0_arr[:,:2]) )
-            prof_th_list.append( angle_segment( segment[:,:2], segment[:,2:4], p_0_arr[:,:2]) *180/pi )
+        #    p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x))*180/pi
+            p_sec_arr[:,3]=angle_test( p_start_point_arr, p_center_point_arr, p_sec_arr[:,:2])[:,0] *180/pi
 
+            p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
+            print(p_sec_arr)
+            segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
+            prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_center_point_arr) )
+            prof_th_list.append( angle_segment(segment[:,:2],  segment[:,2:4], p_center_point_arr) * 180/pi )
+            start_offset = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), np.array([[p_0.x, p_0.y]]))[:,0] *180/pi
+            start_offset_list.append(start_offset )
+            # print('cross point')
+            cross_point_list.append(cross_point(segment[:,:2], segment[:,2:4], p_center_point_arr))
+            spoke_prof_list.append(p_sec_arr[:,3]+start_offset)
+
+
+    #
+    start_offset_arr = np.array(start_offset_list)
+    spoke_prof_arr=np.vstack(spoke_prof_list)
+    print(spoke_prof_arr[0,:])
+    # print(spoke_prof_arr + start_offset_arr)
+
+    print('start offset')
+    print(start_offset)
+    print(p_sec_arr)
+    print('pary punktow')
+    for i in range(len(cross_point_list)-1):
+        print('sekcja {}'.format(i))
+        for a,b in zip(cross_point_list[i], cross_point_list[i+1]):
+            d_angl = angle_test( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
+            radi_1 = dist(a, np.array([O.x, O.y]))
+            radi_2 = dist(b, np.array([O.x, O.y]))
+
+            print('{} {} {} {} {}'.format(a, b, d_angl, radi_1, radi_2))
+
+    print('angles')
+    print(start_offset_arr)
+    # print(np.vstack([0, np.diff(start_offset_arr,axis=0)]))
+    print(np.cumsum(start_offset_arr))
+    print('angles')
+
+    print('AAAAAAAAAAaaa')
+    print(cross_point_list)
+    print(np.hstack(cross_point_list))
+    print('AAAAAAAAAAaaa')
     print('layer: {}'.format('------------------'))
     print(np.hstack(prof_th_list))
     print('layer: {}'.format('------------------'))
@@ -223,11 +302,12 @@ else:
         dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
         z_set= np.hstack([var.y for var in c_set])
         z_set= np.sort(z_set)
+
     print('R list \n {}'.format(np.hstack(prof_R_list).T))
     print('th list \n {}'.format(np.hstack(prof_th_list).T))
     print('spin sections \n {}'.format(z_set))
 
-    n_sect = 10
+    n_sect = 1
     yv = np.hstack((np.linspace(z_set[0],z_set[-1],n_sect),z_set))
     yv = np.unique(yv)
     yv = np.sort(yv)
@@ -237,17 +317,17 @@ else:
 
     print('R val')
 
-    # for i in range(len(R_val[0,:])):
-    #     path_R = interpolate.interp1d(z_set, R_val[:,i])
-    #     print(path_R(yv))
-    #     print(yv)
-    #     name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-    #     coords2file(name, path_R(yv), yv)
-    #
-    # for i in range(len(th_val[0,:])):
-    #     path_th = interpolate.interp1d(z_set, th_val[:,i])
-    #     name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-    #     print(path_th(yv))
-    #     Rcoords2file(name, path_th(yv))
+    for i in range(len(R_val[0,:])):
+        path_R = interpolate.interp1d(z_set, R_val[:,i])
+        print(path_R(yv))
+        print(yv)
+        name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+        coords2file(name, path_R(yv), yv)
+
+    for i in range(len(th_val[0,:])):
+        path_th = interpolate.interp1d(z_set, th_val[:,i])
+        name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+        print(path_th(yv))
+        Rcoords2file(name, path_th(yv))
 
 print "\n end of program. thank you!"
