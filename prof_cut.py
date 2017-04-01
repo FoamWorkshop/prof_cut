@@ -17,13 +17,16 @@ from scipy import interpolate
 
 
 pt=collections.namedtuple('pt',['x', 'y', 'R', 'th'])
-def angl(x):
+
+def angl_conv(x):
     out = x
 
     if x<0:
         out = 2*pi + x
+
     return out
-vangl=np.vectorize(angl)
+
+vangl=np.vectorize(angl_conv)
 
 def radius_segment(P1,P2,P3):
     P4 = np.abs( (P2[:,1]-P1[:,1]) * P3[:,0] - (P2[:,0]-P1[:,0]) * P3[:,1] + P2[:,0]*P1[:,1] - P2[:,1]*P1[:,0]) / np.sqrt( (P2[:,1] - P1[:,1])**2 + (P2[:,0]-P1[:,0])**2 )
@@ -33,6 +36,8 @@ def angle_segment(P1,P2,P3):
     k = ((P2[:,1]-P1[:,1]) * (P3[:,0]-P1[:,0]) - (P2[:,0]-P1[:,0]) * (P3[:,1]-P1[:,1])) / ((P2[:,1]-P1[:,1])**2 + (P2[:,0]-P1[:,0])**2)
     P4=np.vstack([P3[:,0] - k * (P2[:,1]-P1[:,1]), P3[:,1] + k * (P2[:,0]-P1[:,0])]).T
     angl=np.arctan2(P4[:,1] - P3[:,1], P4[:,0] - P3[:,0])
+
+    # return np.vstack(vangl(angl))
     return np.vstack(angl)
 
 def coords2file(name,coords_XU, coords_YV):
@@ -117,8 +122,7 @@ Each profile is build with n LINES and a CIRCLE. The other shapes are neglected.
 2. spin layer:
 [prefix_XX_spin] where: XX   - part numeber
 The spin is built with n CIRCLES which define JOINTS. The other shapes are neglected. Y position of the CIRCLE center points define coresponding positions of the profile O_POINTS. O_POINTs are assigned to JOINTS as the ordered profile names (LAYER NAMES) along the Y axis. Number of joints must correspond to the number of the profiles.
-
-    ''',
+''',
                                 usage='%(prog)s [-i dxf_filename] [-l lofted_shape_prefix]')
 
 
@@ -201,12 +205,19 @@ else:
             p_0.R = np.sqrt((p_0.x - O.x)**2 + (p_0.y - O.y)**2)
             p_0.th = np.arctan2(p_0.y - O.y, p_0.x - O.x)
             p_sec_arr[:,2]=np.sqrt((p_sec_arr[:,0] - O.x)**2 + (p_sec_arr[:,1] - O.y)**2)
-            p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x) - p_0.th)
+            p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x))*180/pi
             p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
+            print('fffffffffffffffffffff')
+            print(p_sec_arr)
+            print('fffffffffffffffffffff')
             segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
             # prof_R_list.append( np.hstack([radius_segment(segment[:,:2], segment[:,2:4], p_0_arr[:,:2])]) )
             prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_0_arr[:,:2]) )
             prof_th_list.append( angle_segment( segment[:,:2], segment[:,2:4], p_0_arr[:,:2]) *180/pi )
+
+    print('layer: {}'.format('------------------'))
+    print(np.hstack(prof_th_list))
+    print('layer: {}'.format('------------------'))
 
     for layer_name in sorted(prof_spin_layer_name_list):
         dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
@@ -225,17 +236,18 @@ else:
     th_val=np.hstack(prof_th_list).T
 
     print('R val')
-    for i in range(len(R_val[0,:])):
-        path_R = interpolate.interp1d(z_set, R_val[:,i])
-        print(path_R(yv))
-        print(yv)
-        name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-        coords2file(name, path_R(yv), yv)
 
-    for i in range(len(th_val[0,:])):
-        path_th = interpolate.interp1d(z_set, th_val[:,i])
-        name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-        print(path_th(yv))
-        Rcoords2file(name, path_th(yv))
+    # for i in range(len(R_val[0,:])):
+    #     path_R = interpolate.interp1d(z_set, R_val[:,i])
+    #     print(path_R(yv))
+    #     print(yv)
+    #     name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+    #     coords2file(name, path_R(yv), yv)
+    #
+    # for i in range(len(th_val[0,:])):
+    #     path_th = interpolate.interp1d(z_set, th_val[:,i])
+    #     name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+    #     print(path_th(yv))
+    #     Rcoords2file(name, path_th(yv))
 
 print "\n end of program. thank you!"
