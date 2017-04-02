@@ -81,6 +81,26 @@ def angle_test(P1,P2,P3):
 
     return np.vstack(dangl)
 
+def angle_atan2(P1,P2,P3):
+    '''   P3
+         /
+        / angl
+       P2-------P1
+
+    v1 = P1-P2 <- ref. vector
+    v2 = P3-P2
+    '''
+    v1 = P1-P2
+    v2 = P3-P2
+
+    angl1 = np.vstack(np.arctan2(v1[:,1],v1[:,0]))
+    angl2 = np.vstack(np.arctan2(v2[:,1],v2[:,0]))
+    dangl = np.apply_along_axis(lambda x:x if x>=0 else 2*pi+x, 1, angl2-angl1)
+    dangl = np.apply_along_axis(lambda x:x if x<=pi else x-2*pi, 1, dangl)
+
+    return np.vstack(dangl)
+
+
 def coords2file(name,coords_XU, coords_YV):
     pref_1='xyuv_'
     pref_2='r_'
@@ -233,7 +253,7 @@ else:
             print('error some extra sections are present')
         else:
 
-            print('{}'.format(layer_name))
+            # print('{}'.format(layer_name))
 
             O = p_cnt[0]
             p_0 = collections.namedtuple('p_0',['x', 'y', 'R', 'th'])
@@ -254,7 +274,7 @@ else:
             p_sec_arr[:,3]=angle_test( p_start_point_arr, p_center_point_arr, p_sec_arr[:,:2])[:,0] *180/pi
 
             p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
-            print(p_sec_arr)
+            # print(p_sec_arr)
             segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
             prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_center_point_arr) )
             prof_th_list.append( angle_segment(segment[:,:2],  segment[:,2:4], p_center_point_arr) * 180/pi )
@@ -268,35 +288,36 @@ else:
     #
     start_offset_arr = np.array(start_offset_list)
     spoke_prof_arr=np.vstack(spoke_prof_list)
-    print(spoke_prof_arr[0,:])
+    # print(spoke_prof_arr[0,:])
     # print(spoke_prof_arr + start_offset_arr)
 
-    print('start offset')
-    print(start_offset)
-    print(p_sec_arr)
-    print('pary punktow')
+    # print('start offset')
+    # print(start_offset)
+    # print(p_sec_arr)
+    # print('pary punktow')
     for i in range(len(cross_point_list)-1):
         print('sekcja {}'.format(i))
+        p_0c = cross_point_list[0][0,:]
+        ang0c = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), p_0c)[:,0] *180/pi
+
+
+
+        ang_c = ang0c+ angle_test(np.ones((np.size(p_sec_arr[:,0]) , 2)) * p_0c, np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y]), cross_point_list[0])[:,0] *180/pi
+        print(p_0c, ang0c)
+        print(np.vstack(ang_c))
         for a,b in zip(cross_point_list[i], cross_point_list[i+1]):
-            d_angl = angle_test( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
+            # abs_angl = angle_test( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
+            d_angl = angle_atan2( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
             radi_1 = dist(a, np.array([O.x, O.y]))
             radi_2 = dist(b, np.array([O.x, O.y]))
 
             print('{} {} {} {} {}'.format(a, b, d_angl, radi_1, radi_2))
 
-    print('angles')
-    print(start_offset_arr)
-    # print(np.vstack([0, np.diff(start_offset_arr,axis=0)]))
-    print(np.cumsum(start_offset_arr))
-    print('angles')
 
-    print('AAAAAAAAAAaaa')
-    print(cross_point_list)
-    print(np.hstack(cross_point_list))
-    print('AAAAAAAAAAaaa')
-    print('layer: {}'.format('------------------'))
-    print(np.hstack(prof_th_list))
-    print('layer: {}'.format('------------------'))
+
+
+
+
 
     for layer_name in sorted(prof_spin_layer_name_list):
         dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
