@@ -276,8 +276,8 @@ else:
             p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
             # print(p_sec_arr)
             segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
-            prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_center_point_arr) )
-            prof_th_list.append( angle_segment(segment[:,:2],  segment[:,2:4], p_center_point_arr) * 180/pi )
+            # prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_center_point_arr) )
+            # prof_th_list.append( angle_segment(segment[:,:2],  segment[:,2:4], p_center_point_arr) * 180/pi )
             start_offset = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), np.array([[p_0.x, p_0.y]]))[:,0] *180/pi
             start_offset_list.append(start_offset )
             # print('cross point')
@@ -295,6 +295,9 @@ else:
     # print(start_offset)
     # print(p_sec_arr)
     # print('pary punktow')
+    d_angl_list=[]
+    radi_1_list=[]
+    radi_2_list=[]
     for i in range(len(cross_point_list)-1):
         print('sekcja {}'.format(i))
         p_0c = cross_point_list[0][0,:]
@@ -307,13 +310,16 @@ else:
         print(np.vstack(ang_c))
         for a,b in zip(cross_point_list[i], cross_point_list[i+1]):
             # abs_angl = angle_test( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
-            d_angl = angle_atan2( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
-            radi_1 = dist(a, np.array([O.x, O.y]))
-            radi_2 = dist(b, np.array([O.x, O.y]))
+            d_angl_list.append(angle_atan2( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi)
+            radi_1_list.append(dist(a, np.array([O.x, O.y])))
+            radi_2_list.append(dist(b, np.array([O.x, O.y])))
 
-            print('{} {} {} {} {}'.format(a, b, d_angl, radi_1, radi_2))
+            # print('{} {} {} {} {}'.format(a, b, d_angl, radi_1, radi_2))
 
-
+        prof_R_list.append(np.vstack(radi_1_list))
+        prof_R_list.append(np.vstack(radi_2_list))
+        prof_th_list.append(np.vstack(ang_c))
+        prof_th_list.append(np.vstack(ang_c)+np.vstack(d_angl_list))
 
 
 
