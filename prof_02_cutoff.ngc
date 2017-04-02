@@ -1,0 +1,11 @@
+o<prof_02_cutoff> sub
+
+(-----CT PATH-from: prof_02_cutoff-----)
+G1 X  24.000 Y   0.000 U  24.000 V   0.000
+G1 X  24.000 Y  30.000 U  24.000 V  30.000
+G1 X -24.000 Y  30.000 U -24.000 V  30.000
+G1 X -24.000 Y  -0.000 U -24.000 V  -0.000
+G1 X  50.000 Y   0.000 U  50.000 V   0.000
+
+o<prof_02_cutoff> endsub
+M2 (program end)

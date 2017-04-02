@@ -1,0 +1,16 @@
+(lofted profiles cut test 1)
+G21 G90
+
+F200
+G0 B0
+
+G0 X60 Y-5 U60 V-5
+o<prof_02_0000> call
+G0 Y0 V0
+o<prof_02_0001> call
+G0 Y0 V0
+o<prof_02_0002> call
+G0 Y0 V0
+o<prof_02_cutoff> call
+G0 Y0 V0
+M2

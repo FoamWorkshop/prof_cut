@@ -1,0 +1,8 @@
+o<prof_02_0002> sub
+
+(-----CT PATH-from: prof_02_0002-----)
+G1 X   8.824 Y  -0.000 U   8.824 V  -0.000 B 461.180
+G1 X   8.990 Y  30.000 U   8.990 V  30.000 B 430.950
+
+o<prof_02_0002> endsub
+M2 (program end)
