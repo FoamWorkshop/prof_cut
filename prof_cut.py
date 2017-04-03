@@ -182,9 +182,10 @@ the lofted shape is defined by:
 [prefix_XX_YYYY] where: XX   - part numeber; YYYY - profile number.
 Each profile is build with n LINES and a CIRCLE. The other shapes are neglected. he profile is builf with n LINES. The lines have one end coincident (O_POINT) and the other is coincident with the cut contour of the profile. There is one distiguinshed line (0_LINE) which end is marked with a CIRCLE center. This line is treated as the first and the other lines are ordered counterclockwise. All profiles must be build with THE SAME NUMBER of LINES.
 
-2. spin layer:
+      2. spin layer:
 [prefix_XX_spin] where: XX   - part numeber
 The spin is built with n CIRCLES which define JOINTS. The other shapes are neglected. Y position of the CIRCLE center points define coresponding positions of the profile O_POINTS. O_POINTs are assigned to JOINTS as the ordered profile names (LAYER NAMES) along the Y axis. Number of joints must correspond to the number of the profiles.
+
 ''',
                                 usage='%(prog)s [-i dxf_filename] [-l lofted_shape_prefix]')
 
@@ -212,6 +213,7 @@ ffff=args.nb_of_sections
 dir_path = os.getcwd()
 dxf_files = [i for i in os.listdir(dir_path) if i.endswith('.dxf')]
 
+print(dxf_list)
 if not dxf_list:
     print('the input file is not specified, use: -i "file name"')
 elif not (dxf_list in dxf_files):
@@ -219,9 +221,11 @@ elif not (dxf_list in dxf_files):
 elif not layer_list:
     print('the profile prefix is not specified, use: -l "profile prefix"')
 
+
+
 else:
     prof_pref= layer_list
-    prof_spin= layer_list+'_spin'
+    prof_spin= layer_list+'spin'
 
     files_dxf_member = dxf_list
 
@@ -232,129 +236,147 @@ else:
     dxf = dxfgrabber.readfile(files_dxf_member, {"assure_3d_coords": True})
     dxf_layers = dxf.layers
 
-    prof_layer_name_list = [var.name for var in dxf_layers if prof_pref in var.name]
+    # prof_layer_name_list = [var.name for var in dxf_layers if prof_pref in var.name ]
+
+    prof_layer_name_list = [var.name for var in dxf_layers if prof_pref in var.name and var.name.replace(prof_pref,'').isnumeric()]
+
+    print(prof_layer_name_list)
     prof_spin_layer_name_list = [var.name for var in dxf_layers if prof_spin in var.name]
 
-    for layer_name in sorted(prof_layer_name_list):
-        p_set, c_set, shape_count = dxf_read(dxf, layer_name, dec_acc)
+    if not prof_layer_name_list:
+        print('dxf file does not include specified profile layers: {}*'.format(prof_pref))
 
-        p_cnt = [x for x, y in collections.Counter(p_set).items() if y >  1]
-        p_sec = [x for x, y in collections.Counter(p_set).items() if y == 1]
+    elif len(prof_layer_name_list)<2:
+        print('alt least 2 profiles must be defined')
 
-        if len(c_set) == 0:
-            print('no circle defining the start point')
-        elif len(c_set) >1:
-            print('more than one circle defining the start point:\n {}'.format(c_set))
-        elif not(c_set[0] in p_sec):
-            print('circle center position does not match any section node')
-        elif len(p_cnt) != 1:
-                print('error, not single center point: {}'.format(p_cnt))
-        elif len(p_set)/2 != len(p_sec):
-            print('error some extra sections are present')
-        else:
+    elif not prof_spin_layer_name_list:
+        print('dxf file does not include specified spin layer: {}_spin'.format(prof_spin))
 
-            # print('{}'.format(layer_name))
+    elif len(prof_spin_layer_name_list)>1:
+        print('dxf file includes more than 1 spin layer: {}'.format(prof_spin_layer_name_list))
 
-            O = p_cnt[0]
-            p_0 = collections.namedtuple('p_0',['x', 'y', 'R', 'th'])
-            p_0.x = c_set[0].x
-            p_0.y = c_set[0].y
+    else:
+        print('profile_layers: {}'.format(prof_layer_name_list))
+        for layer_name in sorted(prof_layer_name_list):
+            p_set, c_set, shape_count = dxf_read(dxf, layer_name, dec_acc)
 
-            p_cnt_arr=np.array(p_cnt[0])
-            p_sec_arr=np.array(p_sec)
-            p_cnt_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
-            p_center_point_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
-            p_start_point_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([p_0.x, p_0.y])
+            p_cnt = [x for x, y in collections.Counter(p_set).items() if y >  1]
+            p_sec = [x for x, y in collections.Counter(p_set).items() if y == 1]
 
-            p_0.R = np.sqrt((p_0.x - O.x)**2 + (p_0.y - O.y)**2)
+            if len(c_set) == 0:
+                print('no circle defining the start point')
+            elif len(c_set) >1:
+                print('more than one circle defining the start point:\n {}'.format(c_set))
+            elif not(c_set[0] in p_sec):
+                print('circle center position does not match any section node')
+            elif len(p_cnt) != 1:
+                    print('error, not single center point: {}'.format(p_cnt))
+            elif len(p_set)/2 != len(p_sec):
+                print('some extra sections are present')
+            else:
 
-            p_0.th = np.arctan2(p_0.y - O.y, p_0.x - O.x)
-            p_sec_arr[:,2]=np.sqrt((p_sec_arr[:,0] - O.x)**2 + (p_sec_arr[:,1] - O.y)**2)
-        #    p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x))*180/pi
-            p_sec_arr[:,3]=angle_test( p_start_point_arr, p_center_point_arr, p_sec_arr[:,:2])[:,0] *180/pi
+                # print('{}'.format(layer_name))
 
-            p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
-            # print(p_sec_arr)
-            segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
-            # prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_center_point_arr) )
-            # prof_th_list.append( angle_segment(segment[:,:2],  segment[:,2:4], p_center_point_arr) * 180/pi )
-            start_offset = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), np.array([[p_0.x, p_0.y]]))[:,0] *180/pi
-            start_offset_list.append(start_offset )
-            # print('cross point')
-            cross_point_list.append(cross_point(segment[:,:2], segment[:,2:4], p_center_point_arr))
-            spoke_prof_list.append(p_sec_arr[:,3]+start_offset)
+                O = p_cnt[0]
+                p_0 = collections.namedtuple('p_0',['x', 'y', 'R', 'th'])
+                p_0.x = c_set[0].x
+                p_0.y = c_set[0].y
 
+                p_cnt_arr=np.array(p_cnt[0])
+                p_sec_arr=np.array(p_sec)
+                p_cnt_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
+                p_center_point_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y])
+                p_start_point_arr=np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([p_0.x, p_0.y])
 
-    #
-    start_offset_arr = np.array(start_offset_list)
-    spoke_prof_arr=np.vstack(spoke_prof_list)
-    # print(spoke_prof_arr[0,:])
-    # print(spoke_prof_arr + start_offset_arr)
+                p_0.R = np.sqrt((p_0.x - O.x)**2 + (p_0.y - O.y)**2)
 
-    # print('start offset')
-    # print(start_offset)
-    # print(p_sec_arr)
-    # print('pary punktow')
-    d_angl_list=[]
-    radi_1_list=[]
-    radi_2_list=[]
-    for i in range(len(cross_point_list)-1):
-        print('sekcja {}'.format(i))
-        p_0c = cross_point_list[0][0,:]
-        ang0c = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), p_0c)[:,0] *180/pi
+                p_0.th = np.arctan2(p_0.y - O.y, p_0.x - O.x)
+                p_sec_arr[:,2]=np.sqrt((p_sec_arr[:,0] - O.x)**2 + (p_sec_arr[:,1] - O.y)**2)
+            #    p_sec_arr[:,3]=vangl(np.arctan2(p_sec_arr[:,1] - O.y, p_sec_arr[:,0] - O.x))*180/pi
+                p_sec_arr[:,3]=angle_test( p_start_point_arr, p_center_point_arr, p_sec_arr[:,:2])[:,0] *180/pi
+
+                p_sec_arr=np.vstack(sorted(p_sec_arr, key=lambda a_entry: a_entry[3]))
+                # print(p_sec_arr)
+                segment = np.hstack([p_sec_arr[:,:2],np.roll(p_sec_arr[:,:2],-1, axis=0)])
+                # prof_R_list.append(  radius_segment(segment[:,:2], segment[:,2:4], p_center_point_arr) )
+                # prof_th_list.append( angle_segment(segment[:,:2],  segment[:,2:4], p_center_point_arr) * 180/pi )
+                start_offset = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), np.array([[p_0.x, p_0.y]]))[:,0] *180/pi
+                start_offset_list.append(start_offset )
+                # print('cross point')
+                cross_point_list.append(cross_point(segment[:,:2], segment[:,2:4], p_center_point_arr))
+                spoke_prof_list.append(p_sec_arr[:,3]+start_offset)
 
 
+        #
+        start_offset_arr = np.array(start_offset_list)
+        spoke_prof_arr=np.vstack(spoke_prof_list)
+        # print(spoke_prof_arr[0,:])
+        # print(spoke_prof_arr + start_offset_arr)
 
-        ang_c = ang0c+ angle_test(np.ones((np.size(p_sec_arr[:,0]) , 2)) * p_0c, np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y]), cross_point_list[0])[:,0] *180/pi
-        print(p_0c, ang0c)
-        print(np.vstack(ang_c))
-        for a,b in zip(cross_point_list[i], cross_point_list[i+1]):
-            # abs_angl = angle_test( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
-            d_angl_list.append(angle_atan2( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi)
-            radi_1_list.append(dist(a, np.array([O.x, O.y])))
-            radi_2_list.append(dist(b, np.array([O.x, O.y])))
-
-            # print('{} {} {} {} {}'.format(a, b, d_angl, radi_1, radi_2))
-
-        prof_R_list.append(np.vstack(radi_1_list))
-        prof_R_list.append(np.vstack(radi_2_list))
-        prof_th_list.append(np.vstack(ang_c))
-        prof_th_list.append(np.vstack(ang_c)+np.vstack(d_angl_list))
+        # print('start offset')
+        # print(start_offset)
+        # print(p_sec_arr)
+        # print('pary punktow')
+        d_angl_list=[]
+        radi_1_list=[]
+        radi_2_list=[]
+        for i in range(len(cross_point_list)-1):
+            print('sekcja {}'.format(i))
+            p_0c = cross_point_list[0][0,:]
+            ang0c = angle_test( np.array([[1,0]]), np.array([[O.x, O.y]]), p_0c)[:,0] *180/pi
 
 
 
+            ang_c = ang0c+ angle_test(np.ones((np.size(p_sec_arr[:,0]) , 2)) * p_0c, np.ones((np.size(p_sec_arr[:,0]) , 2)) * np.array([O.x, O.y]), cross_point_list[0])[:,0] *180/pi
+            print(p_0c, ang0c)
+            print(np.vstack(ang_c))
+            for a,b in zip(cross_point_list[i], cross_point_list[i+1]):
+                # abs_angl = angle_test( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi
+                d_angl_list.append(angle_atan2( a, np.array([[O.x, O.y]]), b)[:,0] *180/pi)
+                radi_1_list.append(dist(a, np.array([O.x, O.y])))
+                radi_2_list.append(dist(b, np.array([O.x, O.y])))
+
+                # print('{} {} {} {} {}'.format(a, b, d_angl, radi_1, radi_2))
+
+            prof_R_list.append(np.vstack(radi_1_list))
+            prof_R_list.append(np.vstack(radi_2_list))
+            prof_th_list.append(np.vstack(ang_c))
+            prof_th_list.append(np.vstack(ang_c)+np.vstack(d_angl_list))
 
 
-    for layer_name in sorted(prof_spin_layer_name_list):
-        dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
-        z_set= np.hstack([var.y for var in c_set])
-        z_set= np.sort(z_set)
 
-    print('R list \n {}'.format(np.hstack(prof_R_list).T))
-    print('th list \n {}'.format(np.hstack(prof_th_list).T))
-    print('spin sections \n {}'.format(z_set))
 
-    n_sect = 1
-    yv = np.hstack((np.linspace(z_set[0],z_set[-1],n_sect),z_set))
-    yv = np.unique(yv)
-    yv = np.sort(yv)
 
-    R_val =np.hstack(prof_R_list).T
-    th_val=np.hstack(prof_th_list).T
+        for layer_name in sorted(prof_spin_layer_name_list):
+            dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
+            z_set= np.hstack([var.y for var in c_set])
+            z_set= np.sort(z_set)
 
-    print('R val')
+        print('R list \n {}'.format(np.hstack(prof_R_list).T))
+        print('th list \n {}'.format(np.hstack(prof_th_list).T))
+        print('spin sections \n {}'.format(z_set))
 
-    for i in range(len(R_val[0,:])):
-        path_R = interpolate.interp1d(z_set, R_val[:,i])
-        print(path_R(yv))
-        print(yv)
-        name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-        coords2file(name, path_R(yv), yv)
+        n_sect = 1
+        yv = np.hstack((np.linspace(z_set[0],z_set[-1],n_sect),z_set))
+        yv = np.unique(yv)
+        yv = np.sort(yv)
 
-    for i in range(len(th_val[0,:])):
-        path_th = interpolate.interp1d(z_set, th_val[:,i])
-        name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-        print(path_th(yv))
-        Rcoords2file(name, path_th(yv))
+        R_val =np.hstack(prof_R_list).T
+        th_val=np.hstack(prof_th_list).T
+
+        print('R val')
+
+        for i in range(len(R_val[0,:])):
+            path_R = interpolate.interp1d(z_set, R_val[:,i])
+            print(path_R(yv))
+            print(yv)
+            name='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+            coords2file(name, path_R(yv), yv)
+
+        for i in range(len(th_val[0,:])):
+            path_th = interpolate.interp1d(z_set, th_val[:,i])
+            name='{0}_r_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+            print(path_th(yv))
+            Rcoords2file(name, path_th(yv))
 
 print "\n end of program. thank you!"
