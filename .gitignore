@@ -92,3 +92,5 @@ ENV/
 #other
 *~*
 *#*
+.knt
+.ngc
