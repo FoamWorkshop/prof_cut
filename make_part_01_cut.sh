@@ -42,7 +42,7 @@ for FILE in fus_01__xyuv_*.knt
 do
   name="${FILE%%.knt}"
   prof_numb="${name##'fus_01__xyuv_'}"
-  prof_r="fus_01__r_$prof_numb.knt"
+  prof_r="fus_01__b_$prof_numb.knt"
   # echo found matching:
     if [ -f "$prof_r" ]; then
       echo found matching: "$prof_r"
@@ -71,8 +71,7 @@ EOL
 for FILE in fus_01*.ngc
 do
 echo "o<""${FILE%%.ngc}""> call" >> $cut_file
-echo G0 X45 U45 >> $cut_file
-echo G0 Y0 V0 >> $cut_file
+echo G0 X35 U35 >> $cut_file
 done
 
 cat >> $cut_file << EOL

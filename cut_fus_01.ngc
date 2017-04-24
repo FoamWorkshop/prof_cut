@@ -1,0 +1,72 @@
+(lofted profiles cut test 1)
+G21 G90
+
+F200
+G0 B0
+
+G0 X60 Y-5 U60 V-5
+o<fus_01__0000> call
+G0 X35 U35
+o<fus_01__0001> call
+G0 X35 U35
+o<fus_01__0002> call
+G0 X35 U35
+o<fus_01__0003> call
+G0 X35 U35
+o<fus_01__0004> call
+G0 X35 U35
+o<fus_01__0005> call
+G0 X35 U35
+o<fus_01__0006> call
+G0 X35 U35
+o<fus_01__0007> call
+G0 X35 U35
+o<fus_01__0008> call
+G0 X35 U35
+o<fus_01__0009> call
+G0 X35 U35
+o<fus_01__0010> call
+G0 X35 U35
+o<fus_01__0011> call
+G0 X35 U35
+o<fus_01__0012> call
+G0 X35 U35
+o<fus_01__0013> call
+G0 X35 U35
+o<fus_01__0014> call
+G0 X35 U35
+o<fus_01__0015> call
+G0 X35 U35
+o<fus_01__0016> call
+G0 X35 U35
+o<fus_01__0017> call
+G0 X35 U35
+o<fus_01__0018> call
+G0 X35 U35
+o<fus_01__0019> call
+G0 X35 U35
+o<fus_01__0020> call
+G0 X35 U35
+o<fus_01__0021> call
+G0 X35 U35
+o<fus_01__0022> call
+G0 X35 U35
+o<fus_01__0023> call
+G0 X35 U35
+o<fus_01__0024> call
+G0 X35 U35
+o<fus_01__0025> call
+G0 X35 U35
+o<fus_01__0026> call
+G0 X35 U35
+o<fus_01__0027> call
+G0 X35 U35
+o<fus_01__0028> call
+G0 X35 U35
+o<fus_01__0029> call
+G0 X35 U35
+o<fus_01__0030> call
+G0 X35 U35
+o<fus_01__0031> call
+G0 X35 U35
+M2

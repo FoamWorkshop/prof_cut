@@ -167,6 +167,9 @@ dflt_dec_acc = 4  # decimal accuracy
 dflt_n_arc = 10  # number of segments
 dflt_l_arc = 0.1  # minimal segment length
 dflt_path_dir = 1  # closed path collecting direction
+dflt_sect=1
+dflt_interp='linear'
+
 prof_segment_list = []
 prof_R_list = []
 prof_th_list = []
@@ -202,21 +205,16 @@ The spin is built with n CIRCLES which define JOINTS. The other shapes are negle
 parser.add_argument('-i', '--input', type=str, required=True, help='input filename')
 parser.add_argument('-l', '--profile_prefix', type=str, required=True, help='profile data prefix. prefix_xxxx - profile; prefix_spin - loft spin data')
 parser.add_argument('-a', '--accuracy', type=int, default=dflt_dec_acc, help='decimal accuracy, default: 3')
-parser.add_argument('-n_sect', '--nb_of_sections', type=int, default=dflt_n_arc, help='number of interpolation sections along the spin, default: number of profiles')
-parser.add_argument('-interp', '--interp_meth', type=str, default=dflt_l_arc, help='interpolation method between profiles:\n, linear -default\n ')
-# parser.add_argument('-cw', '--collection_dir', type=int,default=dflt_path_dir, help='closed path collection dir')
+parser.add_argument('-sect', '--sect', type=int, default=dflt_sect, help='number of additional interpolation sections along the spin, default: 0')
+parser.add_argument('-interp', '--interp', type=str, default=dflt_interp, help='cutting path interpolation method between profiles: linear (default), nearest, zero, slinear, quadratic, cubic')
 
 args = parser.parse_args()
 
 dxf_list = args.input
 layer_list = args.profile_prefix
 dec_acc = args.accuracy
-aaaa=args.interp_meth
-ffff=args.nb_of_sections
-
-# n_arc = args.arc_seg_num
-# l_arc = args.arc_seg_len
-# path_dir = args.collection_dir
+n_sect=args.sect
+interp_meth=args.interp
 
 dir_path = os.getcwd()
 dxf_files = [i for i in os.listdir(dir_path) if i.endswith('.dxf')]
@@ -266,13 +264,6 @@ else:
         for layer_name in sorted(prof_layer_name_list):
             p_set, c_set, shape_count = dxf_read(dxf, layer_name, dec_acc)
 
-
-            # print 'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGgg'
-            # for var in p_set:
-            #     print var
-            # print(c_set)
-            # print 'GGGGGGGGGGGGGGGGGGGGGGGGGGGGGgg'
-
             #find ends of spokes P[0] - P[n]
             pt_P_list = [x for x, y in collections.Counter(p_set).items() if y == 1]
             #find center point 0
@@ -300,10 +291,6 @@ else:
                 S=np.ones((n_spokes , 2)) * np.array(c_set)
                 P=np.ones((n_spokes , 2)) * np.array(pt_P_list)
 
-                # print O
-                # print S
-                # print P
-
                 r = radius(P, O)
                 a = angle_test( S, O, P)*180/pi
                 P_ref = np.array([[1,0]])
@@ -317,12 +304,6 @@ else:
                 C_a = angle_test( C_S, O, C) * 180/pi
                 C_a_ref = angle_test( P_ref, O, C_S) * 180/pi
                 C_r = radius(C,O)
-                # print C_a
-                # print C_r
-                # print 'C_a_ref'
-                # print a_ref
-                # print C[0,:]
-                # print C_a_ref
 
                 C_r_list.append(C_r.T)
                 C_a_list.append(C_a.T + C_a_ref.T)
@@ -333,37 +314,34 @@ else:
         C_r1=np.vstack(C_r_list)
         C_r2=np.roll(C_r1,-1, axis=0)
 
-        # print C_a1
-        # print C_r1
-
 #-----SEKCJA DO POPRAWY. WCZYTANIE KOORDYNATOW Z
         for layer_name in sorted(prof_spin_layer_name_list):
             dummy_1, c_set, dummy_2 = dxf_read(dxf, layer_name, dec_acc)
             C_Z = np.sort([var.y for var in c_set])
 #-----SEKCJA DO POPRAWY. WCZYTANIE KOORDYNATOW Z
 
-        n_sect = 40
         yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
         yv = np.unique(yv)
         yv = np.sort(yv)
 
         print n_spokes
+        cut_in_swing = True
         for i in range(n_spokes):
             print len(C_Z)
             print len(C_r1[:,i])
-            path_C_r1 = interpolate.interp1d(C_Z, C_r1[:,i],kind='quadratic')(yv)
-            path_C_a1 = interpolate.interp1d(C_Z, C_a1[:,i],kind='quadratic')(yv)
+            path_C_r1 = interpolate.interp1d(C_Z, C_r1[:,i],kind=interp_meth)(yv)
+            path_C_a1 = interpolate.interp1d(C_Z, C_a1[:,i],kind=interp_meth)(yv)
             f_name_C_r1='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
             f_name_C_a1='{0}_b_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
             print('yv: {}'.format(yv))
             print('r:  {}'.format(path_C_r1))
             print('a:  {}'.format(path_C_a1))
 
-            coords2file(f_name_C_r1, path_C_r1, yv)
-            Rcoords2file(f_name_C_a1, path_C_a1)
-
-# print('path th')
-        # for i in range(n_spokes):
-        #     #
+            if cut_in_swing and i%2:
+                coords2file(f_name_C_r1, np.flipud(path_C_r1), np.flipud(yv))
+                Rcoords2file(f_name_C_a1, np.flipud(path_C_a1))
+            else:
+                coords2file(f_name_C_r1, path_C_r1, yv)
+                Rcoords2file(f_name_C_a1, path_C_a1)
 
 print "\n end of program. thank you!"
