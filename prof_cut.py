@@ -146,6 +146,28 @@ def interp_points(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth, name):
     yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
     yv = np.unique(yv)
     yv = np.sort(yv)
+
+    truss_list=[]
+
+    for i in range(n_spokes):
+
+        path_P1_X = interpolate.interp1d(C_Z, P1_X[:,i],kind=interp_meth)(yv)
+        path_P1_Y = interpolate.interp1d(C_Z, P1_Y[:,i],kind=interp_meth)(yv)
+
+        truss_list.append(np.vstack([path_P1_X,path_P1_Y,yv]))
+
+
+def interp_points_fc(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth, name):
+    n_spokes = len(seg_P1_X_list[0])
+    print(n_spokes)
+
+    P1_X=np.vstack(seg_P1_X_list)
+    P1_Y=np.vstack(seg_P1_Y_list)
+    yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
+    yv = np.unique(yv)
+    yv = np.sort(yv)
+
+
     truss_list=[]
 
     for i in range(n_spokes):
@@ -158,7 +180,7 @@ def interp_points(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth, name):
     doc = FreeCAD.newDocument()
     myPart = doc.addObject('Part::Feature', 'trus')
 
-    wire_list=[]
+    wire_list_1=[]
     for truss in truss_list:
         points_1 = np.transpose(truss)
         line_list = []
@@ -167,9 +189,13 @@ def interp_points(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth, name):
             print(tuple(p1),tuple(p2))
             line_list.append(Part.makeLine(tuple(p1), tuple(p2)))
 
-        myPart = doc.addObject('Part::Feature', 'truss')
-        myPart.Shape = Part.Wire(line_list)
 
+        wire_list_1.append(Part.Wire(line_list))
+    wire_list_2= wire_list_1[-1:] + wire_list_1[:-1]
+
+    for w1, w2 in zip(wire_list_1, wire_list_2):
+        myPart = doc.addObject('Part::Feature', 'truss')
+        myPart.Shape = Part.makeRuledSurface(w1,w2)
     doc.saveAs(name +'.fcstd')
 
 def dxf_read(files, layer_name, tol):
@@ -376,36 +402,35 @@ else:
             print(np.vstack(seg_P1_X_list))
             print(np.vstack(seg_P1_Y_list))
 
-            interp_points(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth,files_dxf_member)
-            # C_a1=np.vstack(C_a_list)
-            # # C_a2=np.roll(C_a1,-1, axis=0)
-            #
-            # C_r1=np.vstack(C_r_list)
-            # # C_r2=np.roll(C_r1,-1, axis=0)
-            #
-            #
-            # yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
-            # yv = np.unique(yv)
-            # yv = np.sort(yv)
-            #
-            # print n_spokes
-            # cut_in_swing = True
-            # for i in range(n_spokes):
-            #     print len(C_Z)
-            #     print len(C_r1[:,i])
-            #     path_C_r1 = interpolate.interp1d(C_Z, C_r1[:,i],kind=interp_meth)(yv)
-            #     path_C_a1 = interpolate.interp1d(C_Z, C_a1[:,i],kind=interp_meth)(yv)
-            #     f_name_C_r1='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-            #     f_name_C_a1='{0}_b_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-            #     print('yv: {}'.format(yv))
-            #     print('r:  {}'.format(path_C_r1))
-            #     print('a:  {}'.format(path_C_a1))
-            #
-            #     if cut_in_swing and i%2:
-            #         coords2file(f_name_C_r1, np.flipud(path_C_r1), np.flipud(yv))
-            #         Rcoords2file(f_name_C_a1, np.flipud(path_C_a1))
-            #     else:
-            #         coords2file(f_name_C_r1, path_C_r1, yv)
-            #         Rcoords2file(f_name_C_a1, path_C_a1)
+            interp_points_fc(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth,files_dxf_member)
+            C_a1=np.vstack(C_a_list)
+            # C_a2=np.roll(C_a1,-1, axis=0)
+
+            C_r1=np.vstack(C_r_list)
+            # C_r2=np.roll(C_r1,-1, axis=0)
+
+            yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
+            yv = np.unique(yv)
+            yv = np.sort(yv)
+
+            print n_spokes
+            cut_in_swing = True
+            for i in range(n_spokes):
+                print len(C_Z)
+                print len(C_r1[:,i])
+                path_C_r1 = interpolate.interp1d(C_Z, C_r1[:,i],kind=interp_meth)(yv)
+                path_C_a1 = interpolate.interp1d(C_Z, C_a1[:,i],kind=interp_meth)(yv)
+                f_name_C_r1='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+                f_name_C_a1='{0}_b_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+                print('yv: {}'.format(yv))
+                print('r:  {}'.format(path_C_r1))
+                print('a:  {}'.format(path_C_a1))
+
+                if cut_in_swing and i%2:
+                    coords2file(f_name_C_r1, np.flipud(path_C_r1), np.flipud(yv))
+                    Rcoords2file(f_name_C_a1, np.flipud(path_C_a1))
+                else:
+                    coords2file(f_name_C_r1, path_C_r1, yv)
+                    Rcoords2file(f_name_C_a1, path_C_a1)
 
 print "\n end of program. thank you!"
