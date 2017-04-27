@@ -137,24 +137,93 @@ def list_entities(dxf):
 def knots_dict(knots_list):
     return [[i, var] for i, var in enumerate(list(set(knots_list)))]
 
-def interp_points(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth, name):
-    n_spokes = len(seg_P1_X_list[0])
-    print(n_spokes)
+def interp_points(seg_P1_X_list, seg_P1_Y_list, seg_O_X_list, seg_O_Y_list, C_Z, n_sect, interp_meth, name, layer_list):
+
 
     P1_X=np.vstack(seg_P1_X_list)
     P1_Y=np.vstack(seg_P1_Y_list)
+    O_X=np.vstack(seg_O_X_list)
+    O_Y=np.vstack(seg_O_Y_list)
+
     yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
     yv = np.unique(yv)
     yv = np.sort(yv)
+    #
+    n_spokes = len(seg_P1_X_list[0])
+    n_sections = len(yv)
 
-    truss_list=[]
+    truss_list=[]    # print P1_X
 
+    interp_P1_X_list = []
+    interp_P1_Y_list = []
+    interp_O_X_list = []
+    interp_O_Y_list = []
+    #
     for i in range(n_spokes):
 
-        path_P1_X = interpolate.interp1d(C_Z, P1_X[:,i],kind=interp_meth)(yv)
-        path_P1_Y = interpolate.interp1d(C_Z, P1_Y[:,i],kind=interp_meth)(yv)
+        interp_P1_X = interpolate.interp1d(C_Z, P1_X[:,i],kind=interp_meth)(yv)
+        interp_P1_Y = interpolate.interp1d(C_Z, P1_Y[:,i],kind=interp_meth)(yv)
+        interp_O_X =  interpolate.interp1d(C_Z, O_X[:,0],kind=interp_meth)(yv)
+        interp_O_Y =  interpolate.interp1d(C_Z, O_Y[:,0],kind=interp_meth)(yv)
+    #
+        interp_P1_X_list.append(interp_P1_X)
+        interp_P1_Y_list.append(interp_P1_Y)
+        interp_O_X_list.append(interp_O_X)
+        interp_O_Y_list.append(interp_O_Y)
 
-        truss_list.append(np.vstack([path_P1_X,path_P1_Y,yv]))
+    #print np.array([interp_O_X,interp_O_Y]).T
+    #
+    interp_P2_X_list= interp_P1_X_list[1:] + interp_P1_X_list[:1]
+    interp_P2_Y_list= interp_P1_Y_list[1:] + interp_P1_Y_list[:1]
+
+    P1_X = np.vstack([interp_P1_X_list]).T
+    P1_Y = np.vstack([interp_P1_Y_list]).T
+    P2_X = np.vstack([interp_P2_X_list]).T
+    P2_Y = np.vstack([interp_P2_Y_list]).T
+    O_X = np.vstack([interp_O_X_list]).T
+    O_Y = np.vstack([interp_O_Y_list]).T
+
+    C_a = np.ones([n_sections,n_spokes])
+    C_r = np.ones([n_sections,n_spokes])
+
+    P1 = np.vstack([P1_X[:,0], P1_Y[:,0]]).T
+    P2 = np.vstack([P2_X[:,0], P2_Y[:,0]]).T
+    O  = np.vstack([O_X[:,0], O_Y[:,0]]).T
+
+    P_ref = np.ones((len(yv) , 2)) * np.array([[1,0]])
+    C_S = cross_point(P1, P2, O)
+    C_a_ref = angle_test( P_ref, O, C_S) #* 180/pi
+
+    for i in range(n_spokes):
+        print i
+        P1 = np.vstack([P1_X[:,i], P1_Y[:,i]]).T
+        P2 = np.vstack([P2_X[:,i], P2_Y[:,i]]).T
+        O = np.vstack([O_X[:,i], O_Y[:,i]]).T
+        C = cross_point(P1, P2, O)
+        C_r[:,i]=radius(C,O)[:,0]
+        C_a[:,i]=(angle_test( C_S, O, C) + C_a_ref)[:,0]* 180/pi
+
+    # print C_a
+        # C_a[:,i] = C_a[:,i]#+C_a_ref
+    print C_r
+    print C_a
+    # #
+    cut_in_swing = True
+    for i in range(n_spokes):
+
+        f_name_C_r1='0_{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+        f_name_C_a1='0_{0}_b_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+        # print f_name_C_r1
+        # print f_name_C_a1
+        # print path_C_a1
+        # print path_C_r1
+        #
+        if cut_in_swing and i%2:
+            coords2file(f_name_C_r1, np.flipud(C_r[:,i]), np.flipud(yv))
+            Rcoords2file(f_name_C_a1, np.flipud(C_a[:,i]))
+        else:
+            coords2file(f_name_C_r1, C_r[:,i], yv)
+            Rcoords2file(f_name_C_a1, C_a[:,i])
 
 
 def interp_points_fc(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth, name):
@@ -270,6 +339,8 @@ layer_c_set_list=[]
 seg_P1_list=[]
 seg_P1_X_list=[]
 seg_P1_Y_list=[]
+seg_O_X_list=[]
+seg_O_Y_list=[]
 #*********************************************************************PROGRAM
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                 description='''\
@@ -386,51 +457,57 @@ else:
                 seg_P1 = P[a_inds][0]
                 seg_P2 = np.roll(seg_P1,-1, axis=0)
 
+                seg_P1_X_list.append(seg_P1[:,0])
+                seg_P1_Y_list.append(seg_P1[:,1])
+
+                seg_O_X_list.append(np.array(pt_O_list[0])[0])
+                seg_O_Y_list.append(np.array(pt_O_list[0])[1])
+
                 C = cross_point(seg_P1, seg_P2, O)
                 C_S = np.ones((n_spokes , 2)) * C[0,:]
                 C_a = angle_test( C_S, O, C) * 180/pi
                 C_a_ref = angle_test( P_ref, O, C_S) * 180/pi
                 C_r = radius(C,O)
 
-                seg_P1_X_list.append(seg_P1[:,0])
-                seg_P1_Y_list.append(seg_P1[:,1])
 
                 C_r_list.append(C_r.T)
                 C_a_list.append(C_a.T + C_a_ref.T)
 
             # print seg_P1_list
-            print(np.vstack(seg_P1_X_list))
-            print(np.vstack(seg_P1_Y_list))
+            # print(np.vstack(seg_P1_X_list))
+            # print(np.vstack(seg_P1_Y_list))
 
-            interp_points_fc(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth,files_dxf_member)
-            C_a1=np.vstack(C_a_list)
-            # C_a2=np.roll(C_a1,-1, axis=0)
+            interp_points(seg_P1_X_list, seg_P1_Y_list , seg_O_X_list, seg_O_Y_list, C_Z, n_sect, interp_meth,files_dxf_member,layer_list)
 
-            C_r1=np.vstack(C_r_list)
-            # C_r2=np.roll(C_r1,-1, axis=0)
-
-            yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
-            yv = np.unique(yv)
-            yv = np.sort(yv)
-
-            print n_spokes
-            cut_in_swing = True
-            for i in range(n_spokes):
-                print len(C_Z)
-                print len(C_r1[:,i])
-                path_C_r1 = interpolate.interp1d(C_Z, C_r1[:,i],kind=interp_meth)(yv)
-                path_C_a1 = interpolate.interp1d(C_Z, C_a1[:,i],kind=interp_meth)(yv)
-                f_name_C_r1='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-                f_name_C_a1='{0}_b_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
-                print('yv: {}'.format(yv))
-                print('r:  {}'.format(path_C_r1))
-                print('a:  {}'.format(path_C_a1))
-
-                if cut_in_swing and i%2:
-                    coords2file(f_name_C_r1, np.flipud(path_C_r1), np.flipud(yv))
-                    Rcoords2file(f_name_C_a1, np.flipud(path_C_a1))
-                else:
-                    coords2file(f_name_C_r1, path_C_r1, yv)
-                    Rcoords2file(f_name_C_a1, path_C_a1)
+            # interp_points_fc(seg_P1_X_list, seg_P1_Y_list, C_Z, n_sect, interp_meth,files_dxf_member)
+            # C_a1=np.vstack(C_a_list)
+            # # C_a2=np.roll(C_a1,-1, axis=0)
+            #
+            # C_r1=np.vstack(C_r_list)
+            # # C_r2=np.roll(C_r1,-1, axis=0)
+            #
+            # yv = np.hstack((np.linspace(C_Z[0],C_Z[-1],n_sect),C_Z))
+            # yv = np.unique(yv)
+            # yv = np.sort(yv)
+            #
+            # print n_spokes
+            # cut_in_swing = True
+            # for i in range(n_spokes):
+            #     print len(C_Z)
+            #     print len(C_r1[:,i])
+            #     path_C_r1 = interpolate.interp1d(C_Z, C_r1[:,i],kind=interp_meth)(yv)
+            #     path_C_a1 = interpolate.interp1d(C_Z, C_a1[:,i],kind=interp_meth)(yv)
+            #     f_name_C_r1='{0}_xyuv_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+            #     f_name_C_a1='{0}_b_{1:{fill}{align}4}.knt'.format(layer_list,i,fill='0',align='>')
+            #     print('yv: {}'.format(yv))
+            #     print('r:  {}'.format(path_C_r1))
+            #     print('a:  {}'.format(path_C_a1))
+            #
+            #     if cut_in_swing and i%2:
+            #         coords2file(f_name_C_r1, np.flipud(path_C_r1), np.flipud(yv))
+            #         Rcoords2file(f_name_C_a1, np.flipud(path_C_a1))
+            #     else:
+            #         coords2file(f_name_C_r1, path_C_r1, yv)
+            #         Rcoords2file(f_name_C_a1, path_C_a1)
 
 print "\n end of program. thank you!"
